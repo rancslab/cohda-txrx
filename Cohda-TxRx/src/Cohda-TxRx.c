@@ -7,12 +7,12 @@
 // Waits for an incoming TCP connection request and accepts it if it gets one
 int waitForTCPConnection(int port) {
 
-	// Configures the address it's listening to for connections (any ipv4 address)
-	struct sockaddr_in any_ipv4_addr;
-	int any_ipv4_addr_len = sizeof(any_ipv4_addr);
-	any_ipv4_addr.sin_family = AF_INET;
-	any_ipv4_addr.sin_addr.s_addr = INADDR_ANY;
-	any_ipv4_addr.sin_port = htons(port);
+	// Configures the address it's listening to for connections (any ipv6 address)
+	struct sockaddr_in6 any_ipv6_addr;
+	int any_ipv6_addr_len = sizeof(any_ipv6_addr);
+	any_ipv6_addr.sin6_family = AF_INET6;
+	any_ipv6_addr.sin6_addr = in6addr_any;
+	any_ipv6_addr.sin6_port = htons(port);
 
 	int connection_req_sock = -1;
 	int reuseaddr_opt = 1;
@@ -20,7 +20,7 @@ int waitForTCPConnection(int port) {
 	int computer_sock = -1;
 
 	// Creates the socket on which it will listen for connections
-	if ((connection_req_sock = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+	if ((connection_req_sock = socket(AF_INET6, SOCK_STREAM, 0)) < 0) {
 		perror("Connection socket failed to initialize");
 		exit(EXIT_FAILURE);
 	}
@@ -31,9 +31,9 @@ int waitForTCPConnection(int port) {
 		exit(EXIT_FAILURE);
 	}
 
-	// Binds the any_ipv4_addr addres to this socket
-	if (bind(connection_req_sock, (struct sockaddr *)&any_ipv4_addr, sizeof(any_ipv4_addr)) < 0) {
-		perror("any_ipv4_addr did not bind to the connection socket.");
+	// Binds the any_ipv6_addr addres to this socket
+	if (bind(connection_req_sock, (struct sockaddr *)&any_ipv6_addr, sizeof(any_ipv6_addr)) < 0) {
+		perror("any_ipv6_addr did not bind to the connection socket.");
 		exit(EXIT_FAILURE);
 	}
 
@@ -46,7 +46,7 @@ int waitForTCPConnection(int port) {
 	printf("Listening for connection attempt...");
 
 	// Accepts any incoming connection request
-	if ((computer_sock = accept(connection_req_sock, (struct sockaddr *)&any_ipv4_addr, (socklen_t*)&any_ipv4_addr_len)) < 0) {
+	if ((computer_sock = accept(connection_req_sock, (struct sockaddr *)&any_ipv6_addr, (socklen_t*)&any_ipv6_addr_len)) < 0) {
 		perror("Failed to connect");
 		exit(EXIT_FAILURE);
 	}
@@ -56,32 +56,32 @@ int waitForTCPConnection(int port) {
 }
 
 // Sets up the UDP broadcast socket for sending
-int setupUDPSocket(int src_port, int dest_port, struct sockaddr_in *out_broadcast_dest) {
+int setupUDPSocket(int src_port, int dest_port, struct sockaddr_in6 *out_broadcast_dest) {
 
 	// Sets the address from which UDP data will be sent
-	struct sockaddr_in broadcast_src;
+	struct sockaddr_in6 broadcast_src;
 	int broadcast_src_len = sizeof(broadcast_src);
-	broadcast_src.sin_family = AF_INET;
-	char * src_ip_str = "127.0.0.1";
-	struct in_addr src_ip;
-	inet_pton(AF_INET, src_ip_str, &src_ip);
-	broadcast_src.sin_addr.s_addr = src_ip.s_addr;
-	broadcast_src.sin_port = htons(src_port);
+	broadcast_src.sin6_family = AF_INET6;
+	char * src_ip_str = "::1";
+	struct in6_addr src_ip;
+	inet_pton(AF_INET6, src_ip_str, &src_ip);
+	broadcast_src.sin6_addr = src_ip;
+	broadcast_src.sin6_port = htons(src_port);
 
 	// Sets the address to which UDP data will be sent
-	struct sockaddr_in broadcast_dest;
-	broadcast_dest.sin_family = AF_INET;
-	char * dest_ip_str = "127.0.0.1";
-	struct in_addr dest_ip;
-	inet_pton(AF_INET, dest_ip_str, &dest_ip);
-	broadcast_dest.sin_addr.s_addr = dest_ip.s_addr;
-	broadcast_dest.sin_port = htons(dest_port);
+	struct sockaddr_in6 broadcast_dest;
+	broadcast_dest.sin6_family = AF_INET6;
+	char * dest_ip_str = "::1";
+	struct in6_addr dest_ip;
+	inet_pton(AF_INET6, dest_ip_str, &dest_ip);
+	broadcast_dest.sin6_addr = dest_ip;
+	broadcast_dest.sin6_port = htons(dest_port);
 
 	int broadcast_sock = -1;
 	int broadcast_enable = 1;
 
 	// Creates the socket on which broadcasts will be sent
-	if ((broadcast_sock = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
+	if ((broadcast_sock = socket(AF_INET6, SOCK_DGRAM, 0)) < 0) {
 		perror("Broadcast socket could not be created.");
 		exit(EXIT_FAILURE);
 	}
@@ -112,10 +112,10 @@ int main(int argc, char *argv[]) {
 	int computer_sock = waitForTCPConnection(SENDER_PORT);
 	printf("Connection established");
 
-	struct sockaddr_in broadcast_dest_addr;
+	struct sockaddr_in6 broadcast_dest_addr;
 	int broadcast_sock = setupUDPSocket(BROADCAST_SRC_PORT, BROADCAST_DEST_PORT, &broadcast_dest_addr);
 
-	// Sends test message on the UDP broadcast socket from 127.0.0.1:51002 to 127.0.0.1:51010
+	// Sends test message on the UDP broadcast socket from ::1 port 51002 to ::1 port 51010
 	char buffer[1024];
 	memset(buffer, 0, sizeof(buffer));
 
