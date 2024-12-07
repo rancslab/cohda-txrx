@@ -56,25 +56,12 @@ int waitForTCPConnection(int port) {
 }
 
 // Sets up the UDP broadcast socket for sending
-int setupUDPSocket(int src_port, int dest_port, struct sockaddr_in6 *out_broadcast_dest) {
-
-	// Sets the address from which UDP data will be sent
-	struct sockaddr_in6 broadcast_src;
-	int broadcast_src_len = sizeof(broadcast_src);
-	broadcast_src.sin6_family = AF_INET6;
-	char * src_ip_str = "::1";
-	struct in6_addr src_ip;
-	inet_pton(AF_INET6, src_ip_str, &src_ip);
-	broadcast_src.sin6_addr = src_ip;
-	broadcast_src.sin6_port = htons(src_port);
+int setupUDPSocket(int dest_port, struct sockaddr_in6 *out_broadcast_dest) {
 
 	// Sets the address to which UDP data will be sent
 	struct sockaddr_in6 broadcast_dest;
 	broadcast_dest.sin6_family = AF_INET6;
-	char * dest_ip_str = "::1";
-	struct in6_addr dest_ip;
-	inet_pton(AF_INET6, dest_ip_str, &dest_ip);
-	broadcast_dest.sin6_addr = dest_ip;
+	broadcast_dest.sin6_addr = in6addr_any;
 	broadcast_dest.sin6_port = htons(dest_port);
 
 	int broadcast_sock = -1;
@@ -92,41 +79,68 @@ int setupUDPSocket(int src_port, int dest_port, struct sockaddr_in6 *out_broadca
 		exit(EXIT_FAILURE);
 	}
 
-	// Binds the address that data will be sent from to the socket
-	if (bind(broadcast_sock, (struct sockaddr *)&broadcast_src, broadcast_src_len) < 0) {
-		perror("Broadcast address failed to bind");
-		exit(EXIT_FAILURE);
-	}
-
 	// Returns the broadcast destination address and the broadcast socket
 	*out_broadcast_dest = broadcast_dest;
 	return broadcast_sock;
 }
 
+int broadcast(char * message, int socket, struct sockaddr_in6* broadcast_addr) {
+
+	int success = 1;
+
+	if (sendto(socket, message, strlen(message), 0, (struct sockaddr *)broadcast_addr, sizeof(*broadcast_addr)) < 0) {
+		perror("Failed to send UDP packet");
+		success = -1;
+	}
+
+	return success;
+}
+
+int recieveTCP(char * buffer, int socket) {
+
+	memset(buffer, 0, sizeof(buffer));
+
+	//--
+	printf("\n\nReading...\n\n");
+
+	if (read(socket, buffer, sizeof(buffer)) < 0) {
+		perror("Failed to read TCP socket");
+		exit(EXIT_FAILURE);
+	}
+}
+
+//int recieveUDP() {}
+
 int main(int argc, char *argv[]) {
 
 	const int SENDER_PORT = 51001;
-	const int BROADCAST_SRC_PORT = 51002;
-	const int BROADCAST_DEST_PORT = 51010;
+	const int BROADCAST_DEST_PORT = 51002;
 
 	int computer_sock = waitForTCPConnection(SENDER_PORT);
 	printf("Connection established");
 
 	struct sockaddr_in6 broadcast_dest_addr;
-	int broadcast_sock = setupUDPSocket(BROADCAST_SRC_PORT, BROADCAST_DEST_PORT, &broadcast_dest_addr);
+	int broadcast_sock = setupUDPSocket(BROADCAST_DEST_PORT, &broadcast_dest_addr);
 
-	// Sends test message on the UDP broadcast socket from ::1 port 51002 to ::1 port 51010
-	char buffer[1024];
-	memset(buffer, 0, sizeof(buffer));
+	int should_continue = 1;
 
-	read(computer_sock, buffer, sizeof(buffer));
-	printf("\nSending message:\n\n");
-	printf(buffer);
+	char message_buffer[1024];
 
-	if (sendto(broadcast_sock, buffer, strlen(buffer), 0, (struct sockaddr *)&broadcast_dest_addr, sizeof(broadcast_dest_addr)) < 0) {
-		perror("Failed to send UDP packet on 'broadcast_sock'");
+	while(should_continue) {
+
+		recieveTCP(message_buffer, computer_sock);
+
+		printf("Sending: ");
+		printf(message_buffer);
+
+		broadcast(message_buffer, broadcast_sock, &broadcast_dest_addr);
+
+		if (strcmp(message_buffer, "STOP") == 0) {
+			should_continue = 0;
+		}
 	}
 
+	printf("Ending broadcast...");
 
 	return EXIT_SUCCESS;
 }
