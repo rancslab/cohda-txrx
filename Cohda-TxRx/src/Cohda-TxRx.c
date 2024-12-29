@@ -43,7 +43,6 @@ int waitForTCPConnection(int port) {
 		exit(EXIT_FAILURE);
 	}
 
-	printf("Listening for connection attempt...");
 
 	// Accepts any incoming connection request
 	if ((computer_sock = accept(connection_req_sock, (struct sockaddr *)&any_ipv6_addr, (socklen_t*)&any_ipv6_addr_len)) < 0) {
@@ -116,6 +115,7 @@ int main(int argc, char *argv[]) {
 	const int SENDER_PORT = 51001;
 	const int BROADCAST_DEST_PORT = 51002;
 
+	printf("Listening for connection attempt...");
 	int computer_sock = waitForTCPConnection(SENDER_PORT);
 	printf("Connection established");
 
@@ -133,11 +133,11 @@ int main(int argc, char *argv[]) {
 		printf("Sending: ");
 		printf(message_buffer);
 
-		broadcast(message_buffer, broadcast_sock, &broadcast_dest_addr);
-
-		if (strcmp(message_buffer, "STOP") == 0) {
+		if ((strcmp(message_buffer, "") == 0)) {
 			should_continue = 0;
 		}
+
+		broadcast(message_buffer, broadcast_sock, &broadcast_dest_addr);
 	}
 
 	printf("Ending broadcast...");
